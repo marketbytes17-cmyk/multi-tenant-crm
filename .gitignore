@@ -1,0 +1,43 @@
+# Environment Variables & Secrets
+.env
+.env.*
+!.env.example
+*.env
+
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+.build/
+
+# Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Local Databases & Logs
+*.db
+*.sqlite
+*.sqlite3
+*.log
+backend/multi_tenant_crm.db
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE & Editor Directories
+.vscode/
+.idea/
+*.swp
+*.swo
+.project
+.settings/
