@@ -10,10 +10,11 @@ from app.schemas.crm import (
     AuditLogResponse, SuperAdminDashboardSummaryResponse,
     UnmatchedLeadResponse, ManualAssignUnmatchedRequest,
     WebhookLogItem, MetaIntegrationStatusResponse, SuperAdminReportDataResponse,
-    LeadsByClientItem, ConversionByClientItem
+    LeadsByClientItem, ConversionByClientItem, ClientAdminUserResponse
 )
 from app.core.security import create_access_token
 from app.api.deps import get_db_for_current_user, require_roles
+
 
 
 router = APIRouter(prefix="/admin", tags=["Super Admin & Impersonation"])
@@ -373,6 +374,106 @@ def get_superadmin_reports(
         leadsByClient=leads_by_client,
         conversionByClient=conversion_by_client
     )
+
+
+@superadmin_router.get("/users", response_model=list[ClientAdminUserResponse])
+@router.get("/users", response_model=list[ClientAdminUserResponse])
+def get_client_admin_users(
+    db: Session = Depends(get_db_for_current_user),
+    current_user: User = Depends(require_roles("SUPER_ADMIN"))
+):
+    """
+    Super Admin Client Admin Accounts Management Endpoint.
+    Lists all Client Admin accounts across tenant organizations.
+    """
+    users = db.query(User).filter(User.role == "CLIENT_ADMIN").order_by(User.created_at.desc()).all()
+
+    results = []
+    for u in users:
+        org_name = u.organization.name if u.organization else "Unassigned Org"
+        results.append(ClientAdminUserResponse(
+            id=str(u.id),
+            name=u.full_name,
+            email=u.email,
+            clientId=str(u.organization_id) if u.organization_id else None,
+            clientName=org_name,
+            status="active" if u.is_active else "inactive",
+            lastLogin=u.updated_at.isoformat() if u.updated_at else u.created_at.isoformat(),
+            createdAt=u.created_at.isoformat() if u.created_at else datetime.utcnow().isoformat()
+        ))
+
+    return results
+
+
+@superadmin_router.post("/users/{user_id}/reset-password")
+@router.post("/users/{user_id}/reset-password")
+def reset_client_admin_password(
+    user_id: str,
+    db: Session = Depends(get_db_for_current_user),
+    current_user: User = Depends(require_roles("SUPER_ADMIN"))
+):
+    """
+    Super Admin Password Reset Link Generation Endpoint.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User account not found.")
+
+    reset_token = f"rst_{uuid.uuid4().hex[:12]}"
+    reset_link = f"https://crm.marketbytes.com/forgot-password/reset?token={reset_token}"
+
+    audit_entry = AuditLog(
+        actor_id=current_user.id,
+        target_organization_id=user.organization_id,
+        action="SUPERADMIN_RESET_USER_PASSWORD",
+        details={"target_user_id": str(user.id), "target_user_email": user.email}
+    )
+    db.add(audit_entry)
+    db.commit()
+
+    return {"success": True, "resetLink": reset_link}
+
+
+@superadmin_router.post("/users/{user_id}/deactivate", response_model=ClientAdminUserResponse)
+@superadmin_router.post("/users/{user_id}/toggle-status", response_model=ClientAdminUserResponse)
+@router.post("/users/{user_id}/deactivate", response_model=ClientAdminUserResponse)
+@router.post("/users/{user_id}/toggle-status", response_model=ClientAdminUserResponse)
+def toggle_client_admin_status(
+    user_id: str,
+    db: Session = Depends(get_db_for_current_user),
+    current_user: User = Depends(require_roles("SUPER_ADMIN"))
+):
+    """
+    Super Admin User Activation / Deactivation Endpoint.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User account not found.")
+
+    user.is_active = not user.is_active
+
+    audit_entry = AuditLog(
+        actor_id=current_user.id,
+        target_organization_id=user.organization_id,
+        action="TOGGLE_USER_ACTIVE_STATUS",
+        details={"target_user_id": str(user.id), "new_is_active": user.is_active}
+    )
+    db.add(audit_entry)
+    db.commit()
+    db.refresh(user)
+
+    org_name = user.organization.name if user.organization else "Unassigned Org"
+    return ClientAdminUserResponse(
+        id=str(user.id),
+        name=user.full_name,
+        email=user.email,
+        clientId=str(user.organization_id) if user.organization_id else None,
+        clientName=org_name,
+        status="active" if user.is_active else "inactive",
+        lastLogin=user.updated_at.isoformat() if user.updated_at else user.created_at.isoformat(),
+        createdAt=user.created_at.isoformat() if user.created_at else datetime.utcnow().isoformat()
+    )
+
 
 
 

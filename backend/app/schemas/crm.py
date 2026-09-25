@@ -283,5 +283,18 @@ class RepPerformanceDataResponse(BaseModel):
     performanceTrend: list[RepPerformanceTrendItem]
 
 
+# ==================== SUPER ADMIN CLIENT USERS ====================
+class ClientAdminUserResponse(BaseModel):
+    id: str
+    name: str
+    email: str
+    clientId: str | None = None
+    clientName: str | None = None
+    status: str
+    lastLogin: str
+    createdAt: str
+
+
+
 
 
