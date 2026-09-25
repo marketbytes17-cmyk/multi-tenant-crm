@@ -134,3 +134,31 @@ class AuditLogResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ==================== DASHBOARDS ====================
+class SystemStatus(BaseModel):
+    metaConnection: str = Field(default="healthy", description="healthy or down")
+    lastChecked: str
+
+class LeadOverTimeItem(BaseModel):
+    date: str
+    leads: int
+
+class RecentActivityItem(BaseModel):
+    id: str
+    clientName: str
+    action: str
+    timestamp: str
+    type: str = Field(default="lead", description="lead, client, or system")
+
+class SuperAdminDashboardSummaryResponse(BaseModel):
+    totalLeadsToday: int
+    totalLeadsWeek: int
+    totalLeadsMonth: int
+    activeClientsCount: int
+    totalAdSpendMonth: int
+    systemStatus: SystemStatus
+    leadsOverTime: list[LeadOverTimeItem]
+    recentActivity: list[RecentActivityItem]
+

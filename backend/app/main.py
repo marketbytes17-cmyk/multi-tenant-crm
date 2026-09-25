@@ -5,7 +5,7 @@ from app.api.auth import router as auth_router
 from app.api.leads import router as leads_router
 from app.api.organizations import router as organizations_router
 from app.api.page_mappings import router as page_mappings_router
-from app.api.admin import router as admin_router
+from app.api.admin import router as admin_router, superadmin_router
 
 app = FastAPI(
     title="Multi-Tenant Agency CRM Backend",
@@ -29,6 +29,8 @@ app.include_router(leads_router, prefix="/api")
 app.include_router(organizations_router, prefix="/api")
 app.include_router(page_mappings_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
+app.include_router(superadmin_router, prefix="/api")
+
 
 
 
