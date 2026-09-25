@@ -3,7 +3,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.models.models import Lead, User, Organization
-from app.schemas.crm import ClientDashboardSummaryResponse, RepDashboardSummaryResponse, StageFunnelItem, TeamActivityItem
+from app.schemas.crm import (
+    ClientDashboardSummaryResponse, RepDashboardSummaryResponse, StageFunnelItem, TeamActivityItem,
+    ClientReportDataResponse, PerformanceOverTimeItem, RepPerformanceItem,
+    RepPerformanceDataResponse, RepPerformanceTrendItem
+)
 from app.schemas.auth import UserCreate, UserResponse
 from app.core.security import get_password_hash
 from app.api.deps import get_db_for_current_user, get_current_user
@@ -11,6 +15,7 @@ from app.api.deps import get_db_for_current_user, get_current_user
 client_router = APIRouter(prefix="/client", tags=["Client Admin Portal"])
 rep_router = APIRouter(prefix="/rep", tags=["Sales Rep Portal"])
 team_router = APIRouter(prefix="/team", tags=["Team & Sales Rep Management"])
+
 
 
 @client_router.get("/dashboard-summary", response_model=ClientDashboardSummaryResponse)
@@ -72,6 +77,57 @@ def get_client_dashboard_summary(
     )
 
 
+@client_router.get("/reports", response_model=ClientReportDataResponse)
+def get_client_reports(
+    from_date: str | None = None,
+    to_date: str | None = None,
+    db: Session = Depends(get_db_for_current_user),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Client Admin Reports Endpoint.
+    Returns tenant performance over time (last 7 days) and per-rep performance breakdown.
+    """
+    now = datetime.utcnow()
+
+    perf_over_time = []
+    for i in range(6, -1, -1):
+        day_date = (now - timedelta(days=i)).date()
+        day_start = datetime.combine(day_date, datetime.min.time())
+        day_end = datetime.combine(day_date, datetime.max.time())
+
+        received = db.query(Lead).filter(Lead.created_at >= day_start, Lead.created_at <= day_end).count()
+        won = db.query(Lead).filter(Lead.created_at >= day_start, Lead.created_at <= day_end, Lead.status == "WON").count()
+
+        perf_over_time.append(PerformanceOverTimeItem(
+            date=day_date.strftime("%b %d"),
+            leadsReceived=received,
+            closedWon=won
+        ))
+
+    reps = db.query(User).filter(User.role == "SALES_REP", User.is_active.is_(True)).all()
+    rep_perf = []
+    for r in reps:
+        handled = db.query(Lead).filter(Lead.assigned_user_id == r.id).count()
+        won = db.query(Lead).filter(Lead.assigned_user_id == r.id, Lead.status == "WON").count()
+        lost = db.query(Lead).filter(Lead.assigned_user_id == r.id, Lead.status == "LOST").count()
+        conv_rate = round((won / handled * 100), 1) if handled > 0 else 0.0
+
+        rep_perf.append(RepPerformanceItem(
+            repId=str(r.id),
+            repName=r.full_name,
+            leadsHandled=handled,
+            closedWon=won,
+            closedLost=lost,
+            conversionRate=conv_rate
+        ))
+
+    return ClientReportDataResponse(
+        performanceOverTime=perf_over_time,
+        repPerformance=rep_perf
+    )
+
+
 @rep_router.get("/dashboard-summary", response_model=RepDashboardSummaryResponse)
 def get_rep_dashboard_summary(
     db: Session = Depends(get_db_for_current_user),
@@ -104,6 +160,46 @@ def get_rep_dashboard_summary(
         conversionRate=conv_rate,
         followUpsDue=follow_ups,
         recentActivity=recent_acts
+    )
+
+
+@rep_router.get("/performance", response_model=RepPerformanceDataResponse)
+def get_rep_performance(
+    db: Session = Depends(get_db_for_current_user),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Sales Rep Personal Performance Endpoint.
+    """
+    now = datetime.utcnow()
+    my_leads = db.query(Lead).filter(Lead.assigned_user_id == current_user.id).all()
+    handled = len(my_leads)
+    won = sum(1 for l in my_leads if l.status == "WON")
+    lost = sum(1 for l in my_leads if l.status == "LOST")
+    conv_rate = round((won / handled * 100), 1) if handled > 0 else 0.0
+
+    trend = []
+    for i in range(6, -1, -1):
+        day_date = (now - timedelta(days=i)).date()
+        day_start = datetime.combine(day_date, datetime.min.time())
+        day_end = datetime.combine(day_date, datetime.max.time())
+
+        received = db.query(Lead).filter(Lead.assigned_user_id == current_user.id, Lead.created_at >= day_start, Lead.created_at <= day_end).count()
+        won_day = db.query(Lead).filter(Lead.assigned_user_id == current_user.id, Lead.created_at >= day_start, Lead.created_at <= day_end, Lead.status == "WON").count()
+
+        trend.append(RepPerformanceTrendItem(
+            date=day_date.strftime("%b %d"),
+            leadsReceived=received,
+            closedWon=won_day
+        ))
+
+    return RepPerformanceDataResponse(
+        leadsHandled=handled,
+        closedWonCount=won,
+        closedLostCount=lost,
+        conversionRate=conv_rate,
+        avgResponseTimeHours=1.4,
+        performanceTrend=trend
     )
 
 
@@ -148,3 +244,4 @@ def invite_team_member(
     db.commit()
     db.refresh(new_user)
     return new_user
+

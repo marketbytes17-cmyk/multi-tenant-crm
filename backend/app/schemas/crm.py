@@ -218,4 +218,70 @@ class ManualAssignUnmatchedRequest(BaseModel):
     clientId: str = Field(..., description="Target Client Organization ID")
 
 
+# ==================== META INTEGRATION HEALTH ====================
+class WebhookLogItem(BaseModel):
+    id: str
+    timestamp: str
+    event: str
+    status: str
+    pageId: str
+    details: str
+
+class MetaIntegrationStatusResponse(BaseModel):
+    tokenStatus: str
+    tokenExpiresAt: str
+    lastWebhookTimestamp: str
+    metaConnectionHealthy: bool
+    recentLogs: list[WebhookLogItem]
+
+
+# ==================== REPORTS & ANALYTICS ====================
+class LeadsByClientItem(BaseModel):
+    clientName: str
+    leads: int
+
+class ConversionByClientItem(BaseModel):
+    clientId: str
+    clientName: str
+    totalLeads: int
+    closedWon: int
+    closedLost: int
+    conversionRate: float
+
+class SuperAdminReportDataResponse(BaseModel):
+    leadsByClient: list[LeadsByClientItem]
+    conversionByClient: list[ConversionByClientItem]
+
+class PerformanceOverTimeItem(BaseModel):
+    date: str
+    leadsReceived: int
+    closedWon: int
+
+class RepPerformanceItem(BaseModel):
+    repId: str
+    repName: str
+    leadsHandled: int
+    closedWon: int
+    closedLost: int
+    conversionRate: float
+
+class ClientReportDataResponse(BaseModel):
+    performanceOverTime: list[PerformanceOverTimeItem]
+    repPerformance: list[RepPerformanceItem]
+
+class RepPerformanceTrendItem(BaseModel):
+    date: str
+    leadsReceived: int
+    closedWon: int
+
+class RepPerformanceDataResponse(BaseModel):
+    leadsHandled: int
+    closedWonCount: int
+    closedLostCount: int
+    conversionRate: float
+    avgResponseTimeHours: float
+    performanceTrend: list[RepPerformanceTrendItem]
+
+
+
 
