@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sora: var(--font-sora);
+  --font-inter: var(--font-inter);
+
+  --color-ink: #030712;
+  --color-primary: #155DFC;
+  --color-primary-soft: #D5E3FC;
+  --color-secondary: #7F71F8;
+  --color-secondary-soft: #EEECFE;
+  --color-tertiary: #F54900;
+  --color-tertiary-soft: #FFF1E6;
+  --color-neutral-icon: #6B7280;
+  --color-neutral-soft: #F1F2F4;
+  --color-success: #00BC7D;
+  --color-danger: #FB3038;
+  --color-bg: #E3E7EF;
+  --color-surface: #FFFFFF;
+  --color-border: #E5E7EB;
+  --color-text-secondary: #6B7280;
+
+  --shadow-card: 0 1px 2px rgba(3,7,18,.04), 0 8px 20px rgba(3,7,18,.06);
+
+  --radius-sm: 9px;
+  --radius-md: 11px;
+  --radius-lg: 14px;
+  --radius-full: 999px;
+}
+
+:root {
+  --ink: #030712;
+  --primary: #155DFC;
+  --primary-soft: #D5E3FC;
+  --secondary: #7F71F8;
+  --secondary-soft: #EEECFE;
+  --tertiary: #F54900;
+  --tertiary-soft: #FFF1E6;
+  --neutral-icon: #6B7280;
+  --neutral-soft: #F1F2F4;
+  --success: #00BC7D;
+  --danger: #FB3038;
+  --page-bg: #E3E7EF;
+  --surface: #FFFFFF;
+  --border: #E5E7EB;
+  --text-soft: #6B7280;
+}
+
+body {
+  background-color: var(--page-bg);
+  color: var(--ink);
+  font-family: var(--font-inter), sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6, .font-heading {
+  font-family: var(--font-sora), sans-serif;
+}
+
+/* Mandatory focus state rule: DESIGN_SYSTEM.md §7 & §9 */
+*:focus-visible {
+  outline: 2px solid #155DFC !important;
+  outline-offset: 1px !important;
+}
+
+/* Custom scrollbar styling for Kanban & mobile strip */
+::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #C5CBD6;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #A0A8B8;
+}
