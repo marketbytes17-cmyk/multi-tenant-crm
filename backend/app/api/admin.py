@@ -1,15 +1,19 @@
+import json
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.models.models import Organization, AuditLog, User, Lead
+from app.models.models import Organization, AuditLog, User, Lead, UnmappedLead
 from app.schemas.auth import Token
-from app.schemas.crm import AuditLogResponse, SuperAdminDashboardSummaryResponse
+from app.schemas.crm import (
+    AuditLogResponse, SuperAdminDashboardSummaryResponse,
+    UnmatchedLeadResponse, ManualAssignUnmatchedRequest
+)
 from app.core.security import create_access_token
 from app.api.deps import get_db_for_current_user, require_roles
 
 router = APIRouter(prefix="/admin", tags=["Super Admin & Impersonation"])
-superadmin_router = APIRouter(prefix="/superadmin", tags=["Super Admin Dashboard"])
+superadmin_router = APIRouter(prefix="/superadmin", tags=["Super Admin Dashboard & Operations"])
 
 
 @superadmin_router.get("/dashboard-summary", response_model=SuperAdminDashboardSummaryResponse)
@@ -94,6 +98,128 @@ def get_superadmin_dashboard_summary(
     }
 
 
+@superadmin_router.get("/leads/unmatched", response_model=list[UnmatchedLeadResponse])
+@router.get("/leads/unmatched", response_model=list[UnmatchedLeadResponse])
+def get_unmatched_leads(
+    db: Session = Depends(get_db_for_current_user),
+    current_user: User = Depends(require_roles("SUPER_ADMIN"))
+):
+    """
+    Super Admin Unmatched Leads Endpoint.
+    Retrieves webhook events that failed Page ID mapping from unmapped_leads table.
+    """
+    unmapped = db.query(UnmappedLead).filter(UnmappedLead.status == "UNMAPPED").order_by(UnmappedLead.created_at.desc()).all()
+
+    results = []
+    for u in unmapped:
+        payload_str = json.dumps(u.raw_payload) if isinstance(u.raw_payload, dict) else str(u.raw_payload or "")
+
+        lead_name = f"Unmapped Lead ({u.leadgen_id[:8]})"
+        lead_phone = None
+        lead_email = None
+
+        if isinstance(u.raw_payload, dict) and "field_data" in u.raw_payload:
+            for field in u.raw_payload.get("field_data", []):
+                fname = field.get("name", "").lower()
+                fvals = field.get("values", [])
+                val = fvals[0] if fvals else None
+                if val:
+                    if "name" in fname:
+                        lead_name = val
+                    elif "phone" in fname:
+                        lead_phone = val
+                    elif "email" in fname:
+                        lead_email = val
+
+        results.append(UnmatchedLeadResponse(
+            id=str(u.id),
+            rawPageId=u.page_id,
+            rawAdId=u.form_id,
+            leadName=lead_name,
+            leadPhone=lead_phone,
+            leadEmail=lead_email,
+            timestamp=u.created_at.isoformat() if u.created_at else datetime.utcnow().isoformat(),
+            payload=payload_str
+        ))
+
+    return results
+
+
+@superadmin_router.post("/leads/{unmatched_id}/manual-assign")
+@router.post("/leads/{unmatched_id}/manual-assign")
+def manual_assign_unmatched_lead(
+    unmatched_id: str,
+    body: ManualAssignUnmatchedRequest,
+    db: Session = Depends(get_db_for_current_user),
+    current_user: User = Depends(require_roles("SUPER_ADMIN"))
+):
+    """
+    Super Admin Manual Lead Assignment Endpoint.
+    Associates an unmapped webhook lead to a target client organization.
+    """
+    unmapped = db.query(UnmappedLead).filter(UnmappedLead.id == unmatched_id).first()
+    if not unmapped:
+        raise HTTPException(status_code=404, detail="Unmapped lead record not found.")
+
+    org = db.query(Organization).filter(Organization.id == body.clientId).first()
+    if not org:
+        raise HTTPException(status_code=404, detail="Target client organization not found.")
+
+    lead_name = f"Manually Assigned Lead ({unmapped.leadgen_id[:8]})"
+    lead_phone = None
+    lead_email = None
+
+    if isinstance(unmapped.raw_payload, dict) and "field_data" in unmapped.raw_payload:
+        for field in unmapped.raw_payload.get("field_data", []):
+            fname = field.get("name", "").lower()
+            fvals = field.get("values", [])
+            val = fvals[0] if fvals else None
+            if val:
+                if "name" in fname:
+                    lead_name = val
+                elif "phone" in fname:
+                    lead_phone = val
+                elif "email" in fname:
+                    lead_email = val
+
+    existing = db.query(Lead).filter(Lead.leadgen_id == unmapped.leadgen_id).first()
+    if not existing:
+        new_lead = Lead(
+            organization_id=org.id,
+            leadgen_id=unmapped.leadgen_id,
+            contact_name=lead_name,
+            contact_phone=lead_phone,
+            contact_email=lead_email,
+            status="NEW",
+            raw_payload=unmapped.raw_payload
+        )
+        db.add(new_lead)
+        db.commit()
+        db.refresh(new_lead)
+        lead_id = new_lead.id
+    else:
+        existing.organization_id = org.id
+        db.commit()
+        lead_id = existing.id
+
+    unmapped.status = "RESOLVED"
+
+    audit_entry = AuditLog(
+        actor_id=current_user.id,
+        target_organization_id=org.id,
+        action="MANUAL_ASSIGN_UNMATCHED_LEAD",
+        details={
+            "unmatched_id": str(unmapped.id),
+            "leadgen_id": unmapped.leadgen_id,
+            "target_org_name": org.name
+        }
+    )
+    db.add(audit_entry)
+    db.commit()
+
+    return {"success": True, "lead_id": str(lead_id)}
+
+
 @router.post("/impersonate/{target_tenant_id}", response_model=Token)
 def impersonate_tenant(
     target_tenant_id: str,
@@ -148,4 +274,5 @@ def get_audit_logs(
     Retrieves global audit logs for agency security monitoring (Super Admin only).
     """
     return db.query(AuditLog).order_by(AuditLog.created_at.desc()).limit(100).all()
+
 

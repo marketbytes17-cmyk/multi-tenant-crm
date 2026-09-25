@@ -203,3 +203,19 @@ class RepDashboardSummaryResponse(BaseModel):
     recentActivity: list[RecentActivityItem]
 
 
+# ==================== UNMATCHED LEADS ====================
+class UnmatchedLeadResponse(BaseModel):
+    id: str
+    rawPageId: str
+    rawAdId: str | None = None
+    leadName: str
+    leadPhone: str | None = None
+    leadEmail: str | None = None
+    timestamp: str
+    payload: str
+
+class ManualAssignUnmatchedRequest(BaseModel):
+    clientId: str = Field(..., description="Target Client Organization ID")
+
+
+
