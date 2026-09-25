@@ -116,6 +116,7 @@ class Lead(Base):
     id = Column(UUID_TYPE, primary_key=True, default=uuid.uuid4)
     organization_id = Column(UUID_TYPE, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
     lead_form_id = Column(UUID_TYPE, ForeignKey("lead_forms.id", ondelete="SET NULL"), nullable=True)
+    assigned_user_id = Column(UUID_TYPE, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     leadgen_id = Column(String(100), unique=True, nullable=False)
     contact_name = Column(String(255), nullable=False)
     contact_email = Column(String(255))
@@ -130,11 +131,14 @@ class Lead(Base):
 
     organization = relationship("Organization", back_populates="leads")
     lead_form = relationship("LeadForm", back_populates="leads")
+    assigned_user = relationship("User", foreign_keys=[assigned_user_id])
 
     __table_args__ = (
         Index('idx_leads_org_id', 'organization_id'),
+        Index('idx_leads_assigned_user', 'assigned_user_id'),
         Index('idx_leads_created_at', created_at.desc()),
     )
+
 
 
 class AuditLog(Base):

@@ -1,9 +1,13 @@
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
 from app.models.models import Lead, User
-from app.schemas.crm import LeadCreate, LeadUpdate, LeadStatusUpdate, LeadResponse, LeadListResponse
+from app.schemas.crm import (
+    LeadCreate, LeadUpdate, LeadStatusUpdate, LeadResponse, LeadListResponse,
+    AssignLeadRequest, BulkAssignLeadsRequest, AddLeadNoteRequest
+)
 from app.api.deps import get_db_for_current_user, get_current_user
 
 router = APIRouter(prefix="/leads", tags=["Leads & Kanban Pipeline"])
@@ -14,17 +18,21 @@ def list_leads(
     size: int = Query(50, ge=1, le=100),
     status_filter: str | None = Query(None, alias="status", description="Filter by Kanban stage: NEW, CONTACTED, NEGOTIATING, WON, LOST"),
     search: str | None = Query(None, description="Search contact_name, contact_email, contact_phone"),
+    unassigned_only: bool = Query(False, alias="unassigned", description="Filter to unassigned leads only"),
     db: Session = Depends(get_db_for_current_user),
     current_user: User = Depends(get_current_user)
 ):
     """
     List leads for the current tenant organization (RLS enforced).
-    Supports pagination, status filtering for Kanban columns, and text search.
+    Supports pagination, status filtering for Kanban columns, text search, and unassigned filtering.
     """
     query = db.query(Lead)
 
     if status_filter:
         query = query.filter(Lead.status == status_filter.upper())
+    
+    if unassigned_only:
+        query = query.filter(Lead.assigned_user_id.is_(None))
     
     if search:
         pattern = f"%{search}%"
@@ -84,6 +92,77 @@ def create_lead(
         notes=lead_in.notes
     )
     db.add(lead)
+    db.commit()
+    db.refresh(lead)
+    return lead
+
+
+@router.post("/{lead_id}/assign", response_model=LeadResponse)
+def assign_lead(
+    lead_id: str,
+    body: AssignLeadRequest,
+    db: Session = Depends(get_db_for_current_user),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Assigns a lead to a sales rep user.
+    """
+    lead = db.query(Lead).filter(Lead.id == lead_id).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found or access denied.")
+    
+    rep = db.query(User).filter(User.id == body.rep_id).first()
+    if not rep:
+        raise HTTPException(status_code=404, detail="Target sales rep user not found.")
+
+    lead.assigned_user_id = rep.id
+    db.commit()
+    db.refresh(lead)
+    return lead
+
+
+@router.post("/bulk-assign")
+def bulk_assign_leads(
+    body: BulkAssignLeadsRequest,
+    db: Session = Depends(get_db_for_current_user),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Bulk assigns multiple unassigned leads to a sales rep.
+    """
+    rep = db.query(User).filter(User.id == body.rep_id).first()
+    if not rep:
+        raise HTTPException(status_code=404, detail="Target sales rep user not found.")
+
+    count = 0
+    for l_id in body.lead_ids:
+        lead = db.query(Lead).filter(Lead.id == l_id).first()
+        if lead:
+            lead.assigned_user_id = rep.id
+            count += 1
+
+    db.commit()
+    return {"success": True, "count": count}
+
+
+@router.post("/{lead_id}/notes", response_model=LeadResponse)
+def add_lead_note(
+    lead_id: str,
+    body: AddLeadNoteRequest,
+    db: Session = Depends(get_db_for_current_user),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Appends a new note to a lead.
+    """
+    lead = db.query(Lead).filter(Lead.id == lead_id).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found or access denied.")
+
+    existing_notes = lead.notes or ""
+    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    note_line = f"[{timestamp}] {current_user.full_name}: {body.content}\n"
+    lead.notes = note_line + existing_notes
     db.commit()
     db.refresh(lead)
     return lead
@@ -178,3 +257,4 @@ def delete_lead(
     db.delete(lead)
     db.commit()
     return None
+

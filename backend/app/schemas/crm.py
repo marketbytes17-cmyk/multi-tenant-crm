@@ -99,6 +99,7 @@ class LeadResponse(BaseModel):
     id: str
     organization_id: str
     lead_form_id: str | None = None
+    assigned_user_id: str | None = None
     leadgen_id: str
     contact_name: str
     contact_email: str | None = None
@@ -118,6 +119,18 @@ class LeadListResponse(BaseModel):
     page: int
     size: int
     items: list[LeadResponse]
+
+
+# ==================== LEAD ASSIGNMENT & NOTES ====================
+class AssignLeadRequest(BaseModel):
+    rep_id: str = Field(..., description="Target Sales Rep User ID")
+
+class BulkAssignLeadsRequest(BaseModel):
+    lead_ids: list[str] = Field(..., description="List of Lead IDs to assign")
+    rep_id: str = Field(..., description="Target Sales Rep User ID")
+
+class AddLeadNoteRequest(BaseModel):
+    content: str = Field(..., min_length=1, description="Note content to append")
 
 
 # ==================== IMPERSONATION & AUDIT LOGS ====================
@@ -161,4 +174,32 @@ class SuperAdminDashboardSummaryResponse(BaseModel):
     systemStatus: SystemStatus
     leadsOverTime: list[LeadOverTimeItem]
     recentActivity: list[RecentActivityItem]
+
+class StageFunnelItem(BaseModel):
+    stage: str
+    count: int
+
+class TeamActivityItem(BaseModel):
+    repId: str
+    repName: str
+    repInitials: str | None = None
+    leadsHandled: int
+    closedWonCount: int
+    conversionRate: float
+
+class ClientDashboardSummaryResponse(BaseModel):
+    newLeadsToday: int
+    unassignedCount: int
+    activeRepsCount: int
+    pipelineActiveValue: float
+    stageFunnel: list[StageFunnelItem]
+    teamActivity: list[TeamActivityItem]
+
+class RepDashboardSummaryResponse(BaseModel):
+    assignedLeadsCount: int
+    followUpsDueCount: int
+    conversionRate: float
+    followUpsDue: list[LeadResponse]
+    recentActivity: list[RecentActivityItem]
+
 
