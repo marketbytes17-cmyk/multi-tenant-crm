@@ -8,7 +8,9 @@ class Settings:
     META_VERIFY_TOKEN: str = os.getenv("META_VERIFY_TOKEN", "meta_crm_verify_token_secure_123")
     META_APP_SECRET: str = os.getenv("META_APP_SECRET", "0123456789abcdef0123456789abcdef")
     MASTER_SYSTEM_USER_ACCESS_TOKEN: str = os.getenv("MASTER_SYSTEM_USER_ACCESS_TOKEN", "EAAG_DEMO_MASTER_SYSTEM_USER_TOKEN_SECURE")
+    META_MASTER_SYSTEM_USER_TOKEN: str = os.getenv("META_MASTER_SYSTEM_USER_TOKEN", os.getenv("MASTER_SYSTEM_USER_ACCESS_TOKEN", "EAAG_DEMO_MASTER_SYSTEM_USER_TOKEN_SECURE"))
     META_GRAPH_API_VERSION: str = os.getenv("META_GRAPH_API_VERSION", "v20.0")
+
 
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://postgres:postgrespassword@127.0.0.1:5432/agency_crm")
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")

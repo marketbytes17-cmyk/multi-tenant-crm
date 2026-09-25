@@ -1,0 +1,136 @@
+from datetime import datetime
+from pydantic import BaseModel, Field
+from typing import Any
+
+# ==================== ORGANIZATIONS ====================
+class OrganizationCreate(BaseModel):
+    name: str = Field(..., min_length=2, description="Client Company Name")
+    primary_contact_name: str | None = None
+    primary_contact_phone: str | None = None
+    primary_contact_email: str | None = None
+    status: str = "ACTIVE"
+
+class OrganizationUpdate(BaseModel):
+    name: str | None = None
+    primary_contact_name: str | None = None
+    primary_contact_phone: str | None = None
+    primary_contact_email: str | None = None
+    status: str | None = None
+
+class OrganizationResponse(BaseModel):
+    id: str
+    name: str
+    primary_contact_name: str | None = None
+    primary_contact_phone: str | None = None
+    primary_contact_email: str | None = None
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ==================== PAGE MAPPINGS & FORMS ====================
+class PageMappingCreate(BaseModel):
+    organization_id: str
+    page_id: str = Field(..., description="15-digit Meta Facebook Page ID")
+    page_name: str
+    page_url: str | None = None
+
+class PageMappingResponse(BaseModel):
+    id: str
+    organization_id: str
+    page_id: str
+    page_name: str
+    page_url: str | None = None
+    is_active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class LeadFormCreate(BaseModel):
+    organization_id: str
+    page_id: str
+    meta_form_id: str
+    form_name: str
+    locale: str = "en_US"
+
+class LeadFormResponse(BaseModel):
+    id: str
+    organization_id: str
+    page_id: str
+    meta_form_id: str | None = None
+    form_name: str
+    locale: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ==================== LEADS & KANBAN PIPELINE ====================
+class LeadCreate(BaseModel):
+    organization_id: str | None = None # Resolved from user token if omitted
+    lead_form_id: str | None = None
+    leadgen_id: str
+    contact_name: str
+    contact_email: str | None = None
+    contact_phone: str | None = None
+    contact_city: str | None = None
+    custom_fields: dict[str, Any] = Field(default_factory=dict)
+    status: str = Field(default="NEW", description="NEW, CONTACTED, NEGOTIATING, WON, LOST")
+    notes: str | None = None
+
+class LeadUpdate(BaseModel):
+    contact_name: str | None = None
+    contact_email: str | None = None
+    contact_phone: str | None = None
+    contact_city: str | None = None
+    status: str | None = Field(default=None, description="NEW, CONTACTED, NEGOTIATING, WON, LOST")
+    notes: str | None = None
+    custom_fields: dict[str, Any] | None = None
+
+class LeadStatusUpdate(BaseModel):
+    status: str = Field(..., description="Target Kanban stage: NEW, CONTACTED, NEGOTIATING, WON, LOST")
+
+class LeadResponse(BaseModel):
+    id: str
+    organization_id: str
+    lead_form_id: str | None = None
+    leadgen_id: str
+    contact_name: str
+    contact_email: str | None = None
+    contact_phone: str | None = None
+    contact_city: str | None = None
+    custom_fields: dict[str, Any]
+    status: str
+    notes: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class LeadListResponse(BaseModel):
+    total: int
+    page: int
+    size: int
+    items: list[LeadResponse]
+
+
+# ==================== IMPERSONATION & AUDIT LOGS ====================
+class ImpersonateRequest(BaseModel):
+    target_organization_id: str
+
+class AuditLogResponse(BaseModel):
+    id: str
+    actor_id: str | None = None
+    target_organization_id: str | None = None
+    action: str
+    details: dict[str, Any]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

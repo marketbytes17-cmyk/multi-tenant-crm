@@ -1,132 +1,160 @@
 import os
 import uuid
-import json
-from sqlalchemy import create_engine, text
+import bcrypt
 from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgrespassword@127.0.0.1:5432/agency_crm")
-engine = create_engine(DATABASE_URL)
+from app.db.database import Base, engine, SessionLocal
+from app.models.models import Organization, PageMapping, LeadForm, Lead, User
 
 def seed_data():
-    with engine.begin() as conn:
-        print("[1/3] Seeding Generic Tenant Organization...")
+    print("=" * 70)
+    print("      Agency Multi-Tenant CRM Database Seeder")
+    print("=" * 70)
+
+    # Ensure tables exist
+    Base.metadata.create_all(bind=engine)
+
+    db = SessionLocal()
+    try:
+        # 1. Seed Tenant Organization
+        print("[1/4] Seeding Demo Client Organization...")
         org_name = "Demo Agency Client A"
-        existing_org = conn.execute(
-            text("SELECT id FROM organizations WHERE name = :name"),
-            {"name": org_name}
-        ).fetchone()
+        existing_org = db.query(Organization).filter(Organization.name == org_name).first()
 
         if existing_org:
-            org_id = str(existing_org.id)
-            print(f"   Using existing Organization ID: {org_id}")
+            org = existing_org
+            print(f"      Using existing Organization ID: {org.id}")
         else:
-            org_id = str(uuid.uuid4())
-            conn.execute(
-                text("""
-                    INSERT INTO organizations (id, name, primary_contact_name, primary_contact_phone, primary_contact_email)
-                    VALUES (:id, :name, :contact_name, :phone, :email)
-                """),
-                {
-                    "id": org_id,
-                    "name": org_name,
-                    "contact_name": "Account Manager",
-                    "phone": "+15550192834",
-                    "email": "contact@demoagencyclient.com"
-                }
+            org = Organization(
+                name=org_name,
+                primary_contact_name="Account Manager",
+                primary_contact_phone="+15550192834",
+                primary_contact_email="contact@demoagencyclient.com",
+                status="ACTIVE"
             )
-            print(f"   Created new Organization ID: {org_id}")
+            db.add(org)
+            db.commit()
+            db.refresh(org)
+            print(f"      Created Organization ID: {org.id}")
 
-        print("[2/3] Seeding Meta Page Mapping & Lead Form...")
+        # 2. Seed Page Mapping & Lead Form
+        print("[2/4] Seeding Facebook Page Mapping & Lead Form...")
         page_id = "109283746554321"
-        conn.execute(
-            text("""
-                INSERT INTO page_mappings (organization_id, page_id, page_name, page_url)
-                VALUES (:org_id, :page_id, :page_name, :page_url)
-                ON CONFLICT (page_id) DO UPDATE SET page_name = EXCLUDED.page_name
-            """),
-            {
-                "org_id": org_id,
-                "page_id": page_id,
-                "page_name": "Demo Client Official Facebook Page",
-                "page_url": "https://www.facebook.com/demoagencyclient/"
-            }
-        )
+        mapping = db.query(PageMapping).filter(PageMapping.page_id == page_id).first()
 
-        form_id_gen = str(uuid.uuid4())
-        res = conn.execute(
-            text("""
-                INSERT INTO lead_forms (id, organization_id, page_id, meta_form_id, form_name, locale)
-                VALUES (:id, :org_id, :page_id, :meta_form_id, :name, 'en_US')
-                ON CONFLICT (meta_form_id) DO UPDATE SET form_name = EXCLUDED.form_name
-                RETURNING id
-            """),
-            {
-                "id": form_id_gen,
-                "org_id": org_id,
-                "page_id": page_id,
-                "meta_form_id": "form_demo_lead_gen_2026",
-                "name": "Standard Web Lead Form 2026"
-            }
-        )
-        form_id = str(res.scalar())
-        print(f"   Lead Form ID: {form_id}")
+        if not mapping:
+            mapping = PageMapping(
+                organization_id=org.id,
+                page_id=page_id,
+                page_name="Demo Client Official Facebook Page",
+                page_url="https://www.facebook.com/demoagencyclient/"
+            )
+            db.add(mapping)
+            db.commit()
+            db.refresh(mapping)
+            print(f"      Mapped Facebook Page ID: {page_id}")
 
-        print("[3/3] Ingesting Sample Leads into Database...")
+        form_meta_id = "form_demo_lead_gen_2026"
+        form = db.query(LeadForm).filter(LeadForm.meta_form_id == form_meta_id).first()
+
+        if not form:
+            form = LeadForm(
+                organization_id=org.id,
+                page_id=page_id,
+                meta_form_id=form_meta_id,
+                form_name="Standard Web Lead Form 2026",
+                locale="en_US"
+            )
+            db.add(form)
+            db.commit()
+            db.refresh(form)
+            print(f"      Registered Lead Form ID: {form.id}")
+
+        # 3. Seed Sample Leads
+        print("[3/4] Ingesting Sample Leads...")
         sample_leads = [
             {
-                "leadgen_id": f"lead_demo_{uuid.uuid4().hex[:8]}",
+                "leadgen_id": f"lead_demo_001",
                 "contact_name": "Alex Morgan",
                 "contact_email": "alex.morgan@example.com",
                 "contact_phone": "+15550192834",
                 "contact_city": "New York",
-                "service_interest": "Digital Marketing Audit",
+                "custom_fields": {"service_interest": "Digital Marketing Audit", "budget": "$25,000"},
+                "status": "NEW",
                 "notes": "Requested follow-up call during business hours"
             },
             {
-                "leadgen_id": f"lead_demo_{uuid.uuid4().hex[:8]}",
+                "leadgen_id": f"lead_demo_002",
                 "contact_name": "Sarah Jenkins",
                 "contact_email": "sarah.j@example.com",
                 "contact_phone": "+15559876543",
                 "contact_city": "San Francisco",
-                "service_interest": "Enterprise CRM Setup",
+                "custom_fields": {"service_interest": "Enterprise CRM Setup", "budget": "$50,000"},
+                "status": "CONTACTED",
                 "notes": "Interested in multi-channel Meta integration"
             }
         ]
 
-        for lead in sample_leads:
-            custom_payload = json.dumps({
-                "service_interest": lead["service_interest"],
-                "consultation_type": "Initial Discovery Call",
-                "form_name": "Standard Web Lead Form 2026"
-            })
-            conn.execute(
-                text("""
-                    INSERT INTO leads (
-                        organization_id, lead_form_id, leadgen_id,
-                        contact_name, contact_email, contact_phone, contact_city,
-                        custom_fields, status, notes
-                    ) VALUES (
-                        :org_id, :form_id, :leadgen_id,
-                        :name, :email, :phone, :city,
-                        CAST(:custom_fields AS jsonb), 'NEW', :notes
-                    )
-                """),
-                {
-                    "org_id": org_id,
-                    "form_id": form_id,
-                    "leadgen_id": lead["leadgen_id"],
-                    "name": lead["contact_name"],
-                    "email": lead["contact_email"],
-                    "phone": lead["contact_phone"],
-                    "city": lead["contact_city"],
-                    "custom_fields": custom_payload,
-                    "notes": lead["notes"]
-                }
-            )
+        for item in sample_leads:
+            existing_lead = db.query(Lead).filter(Lead.leadgen_id == item["leadgen_id"]).first()
+            if not existing_lead:
+                lead = Lead(
+                    organization_id=org.id,
+                    lead_form_id=form.id,
+                    leadgen_id=item["leadgen_id"],
+                    contact_name=item["contact_name"],
+                    contact_email=item["contact_email"],
+                    contact_phone=item["contact_phone"],
+                    contact_city=item["contact_city"],
+                    custom_fields=item["custom_fields"],
+                    status=item["status"],
+                    notes=item["notes"]
+                )
+                db.add(lead)
+        db.commit()
 
-    print("\nSEEDING COMPLETE! Generic Multi-Tenant sample data is ready in PostgreSQL.")
+        # 4. Seed Initial Super Admin & Client Admin Users
+        print("[4/4] Seeding Initial Super Admin & Client Admin Users...")
+        super_admin_pwd = bcrypt.hashpw("MarketBytesAdmin2026!".encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        client_admin_pwd = bcrypt.hashpw("ClientAdmin2026!".encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+        if not db.query(User).filter(User.email == "admin@marketbytes.com").first():
+            super_admin = User(
+                email="admin@marketbytes.com",
+                hashed_password=super_admin_pwd,
+                full_name="Market Bytes Super Admin",
+                role="SUPER_ADMIN",
+                is_active=True
+            )
+            db.add(super_admin)
+
+        if not db.query(User).filter(User.email == "clientadmin@demoagencyclient.com").first():
+            client_admin = User(
+                organization_id=org.id,
+                email="clientadmin@demoagencyclient.com",
+                hashed_password=client_admin_pwd,
+                full_name="Demo Client Admin",
+                role="CLIENT_ADMIN",
+                is_active=True
+            )
+            db.add(client_admin)
+
+        db.commit()
+
+        print("\n" + "=" * 70)
+        print("SEEDING COMPLETE! Multi-Tenant sample data & initial users ready.")
+        print("Super Admin Credentials:  admin@marketbytes.com / MarketBytesAdmin2026!")
+        print("Client Admin Credentials: clientadmin@demoagencyclient.com / ClientAdmin2026!")
+        print("=" * 70)
+
+    except Exception as err:
+        db.rollback()
+        print(f"[Error] Seeding failed: {err}")
+        raise err
+    finally:
+        db.close()
 
 if __name__ == "__main__":
     seed_data()

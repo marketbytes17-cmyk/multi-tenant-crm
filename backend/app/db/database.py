@@ -28,3 +28,26 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def get_tenant_db(tenant_id: str | None = None, is_super_admin: bool = False):
+    """
+    FastAPI Database Dependency for Multi-Tenant Isolation.
+    Sets PostgreSQL session settings `app.current_tenant_id` and `app.is_super_admin`
+    using `SET LOCAL` scoped strictly to the current transaction block.
+    """
+    from sqlalchemy import text
+
+    db = SessionLocal()
+    try:
+        if not DATABASE_URL.startswith("sqlite"):
+            # Set transaction-scoped RLS session variables in PostgreSQL
+            tenant_val = str(tenant_id) if tenant_id else ""
+            admin_val = "true" if is_super_admin else "false"
+
+            db.execute(text("SET LOCAL app.current_tenant_id = :tenant_id"), {"tenant_id": tenant_val})
+            db.execute(text("SET LOCAL app.is_super_admin = :is_super_admin"), {"is_super_admin": admin_val})
+        yield db
+    finally:
+        db.close()
+
