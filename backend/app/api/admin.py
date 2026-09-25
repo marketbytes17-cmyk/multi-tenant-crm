@@ -10,10 +10,12 @@ from app.schemas.crm import (
     AuditLogResponse, SuperAdminDashboardSummaryResponse,
     UnmatchedLeadResponse, ManualAssignUnmatchedRequest,
     WebhookLogItem, MetaIntegrationStatusResponse, SuperAdminReportDataResponse,
-    LeadsByClientItem, ConversionByClientItem, ClientAdminUserResponse
+    LeadsByClientItem, ConversionByClientItem, ClientAdminUserResponse,
+    SuperAdminSettingsResponse, SuperAdminSettingsUpdate
 )
 from app.core.security import create_access_token
 from app.api.deps import get_db_for_current_user, require_roles
+
 
 
 
@@ -473,6 +475,51 @@ def toggle_client_admin_status(
         lastLogin=user.updated_at.isoformat() if user.updated_at else user.created_at.isoformat(),
         createdAt=user.created_at.isoformat() if user.created_at else datetime.utcnow().isoformat()
     )
+
+
+# In-memory settings store fallback
+SUPERADMIN_SETTINGS_STORE = {
+    "platformName": "Market Bytes CRM",
+    "defaultNotifyOnNewLead": True,
+    "systemNotificationEmail": "admin@marketbytes.com"
+}
+
+@superadmin_router.get("/settings", response_model=SuperAdminSettingsResponse)
+@router.get("/settings", response_model=SuperAdminSettingsResponse)
+def get_superadmin_settings(
+    db: Session = Depends(get_db_for_current_user),
+    current_user: User = Depends(require_roles("SUPER_ADMIN"))
+):
+    """
+    Super Admin Settings GET Endpoint.
+    """
+    return SuperAdminSettingsResponse(**SUPERADMIN_SETTINGS_STORE)
+
+
+@superadmin_router.patch("/settings", response_model=SuperAdminSettingsResponse)
+@router.patch("/settings", response_model=SuperAdminSettingsResponse)
+def update_superadmin_settings(
+    body: SuperAdminSettingsUpdate,
+    db: Session = Depends(get_db_for_current_user),
+    current_user: User = Depends(require_roles("SUPER_ADMIN"))
+):
+    """
+    Super Admin Settings PATCH Endpoint.
+    """
+    update_data = body.model_dump(exclude_unset=True)
+    for k, v in update_data.items():
+        SUPERADMIN_SETTINGS_STORE[k] = v
+
+    audit_entry = AuditLog(
+        actor_id=current_user.id,
+        action="UPDATE_SUPERADMIN_SETTINGS",
+        details=update_data
+    )
+    db.add(audit_entry)
+    db.commit()
+
+    return SuperAdminSettingsResponse(**SUPERADMIN_SETTINGS_STORE)
+
 
 
 

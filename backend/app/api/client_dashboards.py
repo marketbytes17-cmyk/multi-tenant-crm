@@ -6,7 +6,8 @@ from app.models.models import Lead, User, Organization
 from app.schemas.crm import (
     ClientDashboardSummaryResponse, RepDashboardSummaryResponse, StageFunnelItem, TeamActivityItem,
     ClientReportDataResponse, PerformanceOverTimeItem, RepPerformanceItem,
-    RepPerformanceDataResponse, RepPerformanceTrendItem
+    RepPerformanceDataResponse, RepPerformanceTrendItem,
+    OrgSettingsResponse, OrgSettingsUpdate, RepSettingsResponse, RepSettingsUpdate
 )
 from app.schemas.auth import UserCreate, UserResponse
 from app.core.security import get_password_hash
@@ -15,6 +16,7 @@ from app.api.deps import get_db_for_current_user, get_current_user
 client_router = APIRouter(prefix="/client", tags=["Client Admin Portal"])
 rep_router = APIRouter(prefix="/rep", tags=["Sales Rep Portal"])
 team_router = APIRouter(prefix="/team", tags=["Team & Sales Rep Management"])
+
 
 
 
@@ -244,4 +246,106 @@ def invite_team_member(
     db.commit()
     db.refresh(new_user)
     return new_user
+
+
+# Settings stores fallback
+ORG_SETTINGS_STORE = {}
+REP_SETTINGS_STORE = {}
+
+@client_router.get("/settings", response_model=OrgSettingsResponse)
+def get_client_org_settings(
+    db: Session = Depends(get_db_for_current_user),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Client Organization Settings GET Endpoint.
+    """
+    org = current_user.organization
+    org_name = org.name if org else "Apex Design Co."
+
+    stored = ORG_SETTINGS_STORE.get(str(current_user.organization_id), {})
+    return OrgSettingsResponse(
+        orgName=stored.get("orgName", org_name),
+        logoUrl=stored.get("logoUrl"),
+        notifyOnNewLead=stored.get("notifyOnNewLead", True),
+        dailySummaryDigest=stored.get("dailySummaryDigest", True),
+        leadAssignmentMode=stored.get("leadAssignmentMode", "manual")
+    )
+
+
+@client_router.patch("/settings", response_model=OrgSettingsResponse)
+def update_client_org_settings(
+    body: OrgSettingsUpdate,
+    db: Session = Depends(get_db_for_current_user),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Client Organization Settings PATCH Endpoint.
+    """
+    org_key = str(current_user.organization_id)
+    stored = ORG_SETTINGS_STORE.get(org_key, {
+        "orgName": current_user.organization.name if current_user.organization else "Apex Design Co.",
+        "notifyOnNewLead": True,
+        "dailySummaryDigest": True,
+        "leadAssignmentMode": "manual"
+    })
+
+    update_data = body.model_dump(exclude_unset=True)
+    stored.update(update_data)
+    ORG_SETTINGS_STORE[org_key] = stored
+
+    if "orgName" in update_data and current_user.organization:
+        current_user.organization.name = update_data["orgName"]
+        db.commit()
+
+    return OrgSettingsResponse(**stored)
+
+
+@rep_router.get("/settings", response_model=RepSettingsResponse)
+def get_rep_settings(
+    db: Session = Depends(get_db_for_current_user),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Sales Rep Personal Settings GET Endpoint.
+    """
+    user_key = str(current_user.id)
+    stored = REP_SETTINGS_STORE.get(user_key, {
+        "name": current_user.full_name,
+        "email": current_user.email,
+        "notifyOnNewLead": True,
+        "notifyOnFollowUp": True,
+        "dailyDigest": False
+    })
+    return RepSettingsResponse(**stored)
+
+
+@rep_router.patch("/settings", response_model=RepSettingsResponse)
+def update_rep_settings(
+    body: RepSettingsUpdate,
+    db: Session = Depends(get_db_for_current_user),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Sales Rep Personal Settings PATCH Endpoint.
+    """
+    user_key = str(current_user.id)
+    stored = REP_SETTINGS_STORE.get(user_key, {
+        "name": current_user.full_name,
+        "email": current_user.email,
+        "notifyOnNewLead": True,
+        "notifyOnFollowUp": True,
+        "dailyDigest": False
+    })
+
+    update_data = body.model_dump(exclude_unset=True)
+    stored.update(update_data)
+    REP_SETTINGS_STORE[user_key] = stored
+
+    if "name" in update_data:
+        current_user.full_name = update_data["name"]
+        db.commit()
+
+    return RepSettingsResponse(**stored)
+
 

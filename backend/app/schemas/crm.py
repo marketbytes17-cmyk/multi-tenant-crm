@@ -295,6 +295,46 @@ class ClientAdminUserResponse(BaseModel):
     createdAt: str
 
 
+# ==================== SETTINGS ====================
+class OrgSettingsResponse(BaseModel):
+    orgName: str
+    logoUrl: str | None = None
+    notifyOnNewLead: bool = True
+    dailySummaryDigest: bool = True
+    leadAssignmentMode: str = "manual"
+
+class OrgSettingsUpdate(BaseModel):
+    orgName: str | None = None
+    logoUrl: str | None = None
+    notifyOnNewLead: bool | None = None
+    dailySummaryDigest: bool | None = None
+    leadAssignmentMode: str | None = None
+
+class RepSettingsResponse(BaseModel):
+    name: str
+    email: str
+    notifyOnNewLead: bool = True
+    notifyOnFollowUp: bool = True
+    dailyDigest: bool = False
+
+class RepSettingsUpdate(BaseModel):
+    name: str | None = None
+    notifyOnNewLead: bool | None = None
+    notifyOnFollowUp: bool | None = None
+    dailyDigest: bool | None = None
+
+class SuperAdminSettingsResponse(BaseModel):
+    platformName: str = "Market Bytes CRM"
+    defaultNotifyOnNewLead: bool = True
+    systemNotificationEmail: str = "admin@marketbytes.com"
+
+class SuperAdminSettingsUpdate(BaseModel):
+    platformName: str | None = None
+    defaultNotifyOnNewLead: bool | None = None
+    systemNotificationEmail: str | None = None
+
+
+
 
 
 
