@@ -41,3 +41,16 @@ Desktop.ini
 *.swo
 .project
 .settings/
+
+# Node & Next.js dependencies
+node_modules/
+frontend/node_modules/
+/.pnp
+.pnp.*
+
+# Next.js build outputs
+.next/
+frontend/.next/
+out/
+frontend/out/
+
