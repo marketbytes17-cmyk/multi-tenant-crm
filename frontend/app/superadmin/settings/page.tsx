@@ -1,19 +1,22 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useToast } from "@/lib/context/ToastContext";
+import { useSuperAdminSettings, useUpdateSuperAdminSettingsMutation } from "@/lib/hooks/useSuperAdmin";
+import { changePasswordApi } from "@/lib/api/auth";
 import { SuperAdminSettingsSchema } from "@/lib/validators/superadmin";
-import { ChangePasswordSchema } from "@/lib/validators/auth";
 import { Settings, Shield, Mail, Lock, Check } from "lucide-react";
 
 export default function SuperAdminSettingsPage() {
   const { toast } = useToast();
+  const { data: initialSettings, isLoading: isLoadingSettings } = useSuperAdminSettings();
+  const updateSettingsMutation = useUpdateSuperAdminSettingsMutation();
 
   const [platformSettings, setPlatformSettings] = useState({
     platformName: "MarketBytes CRM",
-    supportEmail: "support@marketbytes.io",
+    supportEmail: "support@marketbytes.com",
     webhookRetryLimit: 3,
-    defaultNotificationEmail: "alerts@marketbytes.io",
+    defaultNotificationEmail: "alerts@marketbytes.com",
   });
 
   const [passwordData, setPasswordData] = useState({
@@ -23,19 +26,25 @@ export default function SuperAdminSettingsPage() {
   });
 
   const [passwordError, setPasswordError] = useState("");
-  const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
 
-  const handleSavePlatformSettings = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (initialSettings) {
+      setPlatformSettings({
+        platformName: initialSettings.platformName || "MarketBytes CRM",
+        supportEmail: initialSettings.supportEmail || "support@marketbytes.com",
+        webhookRetryLimit: initialSettings.webhookRetryLimit || 3,
+        defaultNotificationEmail: initialSettings.defaultNotificationEmail || "admin@marketbytes.com",
+      });
+    }
+  }, [initialSettings]);
+
+  const handleSavePlatformSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSavingSettings(true);
-    setTimeout(() => {
-      setIsSavingSettings(false);
-      toast("Platform settings updated successfully!", "success");
-    }, 400);
+    await updateSettingsMutation.mutateAsync(platformSettings);
   };
 
-  const handleChangePassword = (e: React.FormEvent) => {
+  const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordError("");
 
@@ -50,12 +59,17 @@ export default function SuperAdminSettingsPage() {
     }
 
     setIsSavingPassword(true);
-    setTimeout(() => {
-      setIsSavingPassword(false);
+    try {
+      await changePasswordApi(passwordData.currentPassword, passwordData.newPassword);
       setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
       toast("Super Admin password updated successfully!", "success");
-    }, 400);
+    } catch (err: any) {
+      setPasswordError(err.message || "Failed to update password. Please check your current password.");
+    } finally {
+      setIsSavingPassword(false);
+    }
   };
+
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -138,10 +152,10 @@ export default function SuperAdminSettingsPage() {
           <div className="flex justify-end pt-2">
             <button
               type="submit"
-              disabled={isSavingSettings}
-              className="bg-[#030712] text-[#FFFFFF] font-semibold text-[13px] px-5 py-2 rounded-full hover:bg-[#155DFC] transition-colors"
+              disabled={updateSettingsMutation.isPending}
+              className="bg-[#030712] text-[#FFFFFF] font-semibold text-[13px] px-5 py-2 rounded-full hover:bg-[#155DFC] transition-colors disabled:opacity-50"
             >
-              {isSavingSettings ? "Saving..." : "Save Platform Settings"}
+              {updateSettingsMutation.isPending ? "Saving..." : "Save Platform Settings"}
             </button>
           </div>
         </form>

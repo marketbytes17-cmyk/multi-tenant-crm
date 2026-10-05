@@ -93,7 +93,7 @@ def test_full_crud_and_impersonation_workflow():
             "page_name": "Apex Official FB Page",
             "page_url": "https://facebook.com/apexdigital"
         },
-        headers=client_headers
+        headers=admin_headers
     )
     assert page_res.status_code == 201, f"Page mapping failed: {page_res.text}"
     page_data = page_res.json()

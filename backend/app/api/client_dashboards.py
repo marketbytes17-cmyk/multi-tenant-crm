@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.models.models import Lead, User, Organization
+from app.models.models import Lead, User, Organization, AuditLog
 from app.schemas.crm import (
     ClientDashboardSummaryResponse, RepDashboardSummaryResponse, StageFunnelItem, TeamActivityItem,
     ClientReportDataResponse, PerformanceOverTimeItem, RepPerformanceItem,
@@ -11,11 +11,15 @@ from app.schemas.crm import (
 )
 from app.schemas.auth import UserCreate, UserResponse
 from app.core.security import get_password_hash
-from app.api.deps import get_db_for_current_user, get_current_user
+from app.api.deps import get_db_for_current_user, get_current_user, require_roles
 
 client_router = APIRouter(prefix="/client", tags=["Client Admin Portal"])
 rep_router = APIRouter(prefix="/rep", tags=["Sales Rep Portal"])
-team_router = APIRouter(prefix="/team", tags=["Team & Sales Rep Management"])
+team_router = APIRouter(
+    prefix="/team",
+    tags=["Team & Sales Rep Management"],
+    dependencies=[Depends(require_roles("SUPER_ADMIN", "CLIENT_ADMIN"))]
+)
 
 
 
@@ -207,13 +211,20 @@ def get_rep_performance(
 
 @team_router.get("", response_model=list[UserResponse])
 def list_team_members(
+    organization_id: str | None = None,
     db: Session = Depends(get_db_for_current_user),
     current_user: User = Depends(get_current_user)
 ):
     """
     Lists sales reps and admins for the current tenant organization (RLS scoped).
     """
-    return db.query(User).order_by(User.created_at.desc()).all()
+    query = db.query(User)
+    if current_user.role == "SUPER_ADMIN" and organization_id:
+        query = query.filter(User.organization_id == organization_id)
+    elif current_user.role != "SUPER_ADMIN":
+        # Non-super-admin users only see members of their own organization
+        query = query.filter(User.organization_id == current_user.organization_id)
+    return query.order_by(User.created_at.desc()).all()
 
 
 @team_router.post("/invite", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -243,9 +254,36 @@ def invite_team_member(
         is_active=True
     )
     db.add(new_user)
+
+    audit_entry = AuditLog(
+        actor_id=current_user.id,
+        target_organization_id=current_user.organization_id,
+        action="INVITE_TEAM_MEMBER",
+        details={"invited_user_id": str(new_user.id), "invited_email": new_user.email, "role": "SALES_REP"}
+    )
+    db.add(audit_entry)
     db.commit()
     db.refresh(new_user)
     return new_user
+
+
+@team_router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_team_member(
+    user_id: str,
+    db: Session = Depends(get_db_for_current_user),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Removes a team member from the current tenant organization.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+    if user.organization_id != current_user.organization_id:
+        raise HTTPException(status_code=403, detail="Cannot remove user from another organization.")
+    db.delete(user)
+    db.commit()
+    return None
 
 
 # Settings stores fallback

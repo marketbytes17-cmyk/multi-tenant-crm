@@ -3,7 +3,13 @@
 import React, { useState, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useClientDetail, useDeactivateClientMutation, useUpdateClientMutation } from "@/lib/hooks/useSuperAdmin";
+import {
+  useClientDetail,
+  useDeactivateClientMutation,
+  useUpdateClientMutation,
+  useClientOrganizationLeads,
+  useClientOrganizationTeam,
+} from "@/lib/hooks/useSuperAdmin";
 import { useAuth } from "@/lib/context/AuthContext";
 import { useToast } from "@/lib/context/ToastContext";
 import { DataTable } from "@/components/shared/DataTable";
@@ -80,10 +86,12 @@ const MOCK_CLIENT_LEADS: Lead[] = [
 export default function ClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const router = useRouter();
-  const { switchRole } = useAuth();
+  const { impersonate } = useAuth();
   const { toast } = useToast();
 
   const { data: client, isLoading, isError } = useClientDetail(resolvedParams.id);
+  const { data: clientLeads = [] } = useClientOrganizationLeads(resolvedParams.id);
+  const { data: clientTeam = [] } = useClientOrganizationTeam(resolvedParams.id);
   const deactivateMutation = useDeactivateClientMutation();
   const updateMutation = useUpdateClientMutation();
 
@@ -116,9 +124,13 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
     );
   }
 
-  const handleImpersonate = () => {
-    toast(`Impersonating ${client.name}... Switching view.`, "info");
-    switchRole("client_admin");
+  const handleImpersonate = async () => {
+    try {
+      toast(`Impersonating ${client.name}... Switching to client workspace.`, "info");
+      await impersonate(client.id, client.name, client.adminEmail || client.contactEmail);
+    } catch (err: any) {
+      toast(err.message || "Failed to impersonate client", "error");
+    }
   };
 
   const handleOpenEdit = () => {
@@ -231,8 +243,8 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
       {/* Tabs Bar */}
       <div className="border-b border-[#E5E7EB] flex items-center gap-6">
         {[
-          { id: "leads", label: "Leads Oversight", icon: Filter, count: client.leadCount },
-          { id: "team", label: "Sales Team", icon: Users, count: client.repCount },
+          { id: "leads", label: "Leads Oversight", icon: Filter, count: clientLeads.length || client.leadCount },
+          { id: "team", label: "Sales Team", icon: Users, count: clientTeam.length || client.repCount },
           { id: "pipeline", label: "Pipeline Kanban", icon: Kanban },
           { id: "pages", label: "Mapped Meta Pages", icon: GitMerge, count: client.mappedPageCount },
         ].map((tab) => {
@@ -266,43 +278,45 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="font-heading font-bold text-[16px] text-[#030712]">Read-Only Lead Oversight</h3>
-              <span className="text-[12px] text-[#6B7280]">Showing latest organization leads</span>
+              <span className="text-[12px] text-[#6B7280]">Showing {clientLeads.length} organization leads</span>
             </div>
-            <DataTable columns={leadColumns} data={MOCK_CLIENT_LEADS} searchPlaceholder="Search leads..." />
+            <DataTable columns={leadColumns} data={clientLeads} searchPlaceholder="Search leads..." />
           </div>
         )}
 
         {activeTab === "team" && (
           <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-[14px] p-5 shadow-card space-y-4">
             <h3 className="font-heading font-bold text-[16px] text-[#030712]">Assigned Sales Representatives</h3>
-            <div className="divide-y divide-[#E5E7EB]">
-              {[
-                { name: "Sarah Jenkins", email: "sarah@apexdesign.com", leads: 48, status: "Active" },
-                { name: "Michael Scott", email: "michael@apexdesign.com", leads: 32, status: "Active" },
-              ].map((rep, idx) => (
-                <div key={idx} className="py-3 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-[#D5E3FC] text-[#155DFC] font-bold text-[11px] flex items-center justify-center">
-                      {rep.name.substring(0, 2).toUpperCase()}
+            {clientTeam.length === 0 ? (
+              <p className="text-[13px] text-[#6B7280] italic py-3">No sales representatives invited yet.</p>
+            ) : (
+              <div className="divide-y divide-[#E5E7EB]">
+                {clientTeam.map((rep) => (
+                  <div key={rep.id} className="py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-[#D5E3FC] text-[#155DFC] font-bold text-[11px] flex items-center justify-center">
+                        {rep.avatarInitials}
+                      </div>
+                      <div>
+                        <p className="text-[13.5px] font-bold text-[#030712] font-heading">{rep.name}</p>
+                        <p className="text-[11.5px] text-[#6B7280]">{rep.email}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-[13.5px] font-bold text-[#030712] font-heading">{rep.name}</p>
-                      <p className="text-[11.5px] text-[#6B7280]">{rep.email}</p>
-                    </div>
+                    <span className="text-[12px] text-[#6B7280]">{rep.assignedLeadsCount} leads assigned</span>
                   </div>
-                  <span className="text-[12px] text-[#6B7280]">{rep.leads} leads assigned</span>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
         {activeTab === "pipeline" && (
           <div className="space-y-3">
             <h3 className="font-heading font-bold text-[16px] text-[#030712]">Organization Pipeline Snapshot</h3>
-            <KanbanBoard initialLeads={MOCK_CLIENT_LEADS} />
+            <KanbanBoard initialLeads={clientLeads} />
           </div>
         )}
+
 
         {activeTab === "pages" && (
           <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-[14px] p-5 shadow-card space-y-3">

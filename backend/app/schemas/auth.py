@@ -18,8 +18,8 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=6, description="Password must be at least 6 characters")
     full_name: str = Field(..., min_length=2)
+    role: str = "SALES_REP"
     organization_id: str | None = None
-    role: str = Field(default="SALES_REP", description="SUPER_ADMIN, CLIENT_ADMIN, or SALES_REP")
 
 class UserResponse(BaseModel):
     id: str
@@ -32,3 +32,14 @@ class UserResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(..., min_length=8, description="Minimum 8 characters")
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+    new_password: str = Field(..., min_length=8, description="Minimum 8 characters")

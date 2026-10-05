@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useUpdateClientSettingsMutation } from "@/lib/hooks/useClient";
+import { changePasswordApi } from "@/lib/api/auth";
 import { ClientSettingsSchema } from "@/lib/validators/client";
 import { ChangePasswordSchema } from "@/lib/validators/auth";
 import { useToast } from "@/lib/context/ToastContext";
@@ -56,7 +57,7 @@ export default function ClientSettingsPage() {
     await updateSettingsMutation.mutateAsync(validation.data);
   };
 
-  const handleChangePassword = (e: React.FormEvent) => {
+  const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordError("");
 
@@ -71,12 +72,17 @@ export default function ClientSettingsPage() {
     }
 
     setIsSavingPassword(true);
-    setTimeout(() => {
-      setIsSavingPassword(false);
+    try {
+      await changePasswordApi(passwordData.currentPassword, passwordData.newPassword);
       setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
       toast("Your admin password has been updated!", "success");
-    }, 400);
+    } catch (err: any) {
+      setPasswordError(err.message || "Failed to update password. Please check your current password.");
+    } finally {
+      setIsSavingPassword(false);
+    }
   };
+
 
   return (
     <div className="max-w-3xl space-y-6">

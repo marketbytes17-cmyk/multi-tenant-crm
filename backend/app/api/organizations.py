@@ -5,7 +5,11 @@ from app.models.models import Organization, User
 from app.schemas.crm import OrganizationCreate, OrganizationUpdate, OrganizationResponse
 from app.api.deps import get_db_for_current_user, get_current_user, require_roles
 
-router = APIRouter(prefix="/organizations", tags=["Client Organizations / Tenants"])
+router = APIRouter(
+    prefix="/organizations",
+    tags=["Client Organizations / Tenants"],
+    dependencies=[Depends(require_roles("SUPER_ADMIN"))]
+)
 
 @router.get("", response_model=list[OrganizationResponse])
 def list_organizations(

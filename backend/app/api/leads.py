@@ -19,6 +19,7 @@ def list_leads(
     status_filter: str | None = Query(None, alias="status", description="Filter by Kanban stage: NEW, CONTACTED, NEGOTIATING, WON, LOST"),
     search: str | None = Query(None, description="Search contact_name, contact_email, contact_phone"),
     unassigned_only: bool = Query(False, alias="unassigned", description="Filter to unassigned leads only"),
+    organization_id: str | None = Query(None, description="Filter by organization ID for Super Admin"),
     db: Session = Depends(get_db_for_current_user),
     current_user: User = Depends(get_current_user)
 ):
@@ -27,6 +28,9 @@ def list_leads(
     Supports pagination, status filtering for Kanban columns, text search, and unassigned filtering.
     """
     query = db.query(Lead)
+
+    if current_user.role == "SUPER_ADMIN" and organization_id:
+        query = query.filter(Lead.organization_id == organization_id)
 
     if status_filter:
         query = query.filter(Lead.status == status_filter.upper())
@@ -72,6 +76,10 @@ def create_lead(
             detail="organization_id is required to create a lead"
         )
     
+    import uuid
+    if not lead_in.leadgen_id:
+        lead_in.leadgen_id = f"manual_{uuid.uuid4().hex[:12]}"
+
     existing = db.query(Lead).filter(Lead.leadgen_id == lead_in.leadgen_id).first()
     if existing:
         raise HTTPException(
@@ -87,8 +95,8 @@ def create_lead(
         contact_email=lead_in.contact_email,
         contact_phone=lead_in.contact_phone,
         contact_city=lead_in.contact_city,
-        custom_fields=lead_in.custom_fields,
-        status=lead_in.status.upper(),
+        custom_fields=lead_in.custom_fields or {},
+        status=lead_in.status.upper() if lead_in.status else "NEW",
         notes=lead_in.notes
     )
     db.add(lead)
@@ -114,6 +122,10 @@ def assign_lead(
     rep = db.query(User).filter(User.id == body.rep_id).first()
     if not rep:
         raise HTTPException(status_code=404, detail="Target sales rep user not found.")
+
+    # Verify rep belongs to the same organization as the current user
+    if current_user.role != "SUPER_ADMIN" and rep.organization_id != current_user.organization_id:
+        raise HTTPException(status_code=403, detail="Cannot assign to a rep outside your organization.")
 
     lead.assigned_user_id = rep.id
     db.commit()

@@ -1,23 +1,33 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Lock, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Lock, Mail, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/lib/context/ToastContext";
+import { resetPasswordApi } from "@/lib/api/auth";
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialEmail = searchParams.get("email") || "";
+
   const { toast } = useToast();
+  const [email, setEmail] = useState(initialEmail);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [isSuccess, setIsSuccess] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    if (!email) {
+      setError("Please provide your account email.");
+      return;
+    }
 
     if (newPassword.length < 8) {
       setError("Password must be at least 8 characters long.");
@@ -30,12 +40,17 @@ export default function ResetPasswordPage() {
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      await resetPasswordApi(email, newPassword);
       setIsSuccess(true);
       toast("Password reset successfully!", "success");
-    }, 600);
+    } catch (err: any) {
+      setError(err.message || "Failed to reset password. Please verify the email address.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#E3E7EF] p-4 font-sans">
@@ -78,6 +93,24 @@ export default function ResetPasswordPage() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label htmlFor="email" className="block text-[12px] font-semibold text-[#030712] mb-1.5 font-heading">
+                  Account Email
+                </label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-[#6B7280] absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@agency.com"
+                    className="w-full bg-[#FFFFFF] border border-[#E5E7EB] rounded-[9px] pl-9 pr-3 py-2.5 text-[13.5px] text-[#030712] placeholder-[#6B7280] focus:border-[#155DFC] transition-colors"
+                    required
+                  />
+                </div>
+              </div>
+
               <div>
                 <label htmlFor="newPassword" className="block text-[12px] font-semibold text-[#030712] mb-1.5 font-heading">
                   New Password
@@ -126,5 +159,13 @@ export default function ResetPasswordPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense>
+      <ResetPasswordForm />
+    </Suspense>
   );
 }

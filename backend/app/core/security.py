@@ -4,7 +4,7 @@ import jwt
 from datetime import datetime, timedelta, timezone
 from app.config import settings
 
-SECRET_KEY = getattr(settings, "JWT_SECRET_KEY", os.getenv("JWT_SECRET_KEY", "super_secret_jwt_key_market_bytes_2026"))
+SECRET_KEY = getattr(settings, "JWT_SECRET", os.getenv("JWT_SECRET", "super_secret_jwt_key_market_bytes_2026"))
 ALGORITHM = getattr(settings, "JWT_ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 # 24 hours default token lifetime
 
@@ -27,7 +27,7 @@ def create_access_token(
     role: str = "SALES_REP",
     expires_delta: timedelta | None = None
 ) -> str:
-    """Creates a signed JWT access token containing user identity, role, and tenant organization_id."""
+    """Creates a signed JWT access token containing subject identity."""
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
@@ -35,8 +35,6 @@ def create_access_token(
     
     to_encode = {
         "sub": str(subject),
-        "org_id": str(organization_id) if organization_id else None,
-        "role": str(role),
         "exp": expire,
         "iat": datetime.now(timezone.utc)
     }

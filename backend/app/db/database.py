@@ -45,8 +45,8 @@ def get_tenant_db(tenant_id: str | None = None, is_super_admin: bool = False):
             tenant_val = str(tenant_id) if tenant_id else ""
             admin_val = "true" if is_super_admin else "false"
 
-            db.execute(text("SET LOCAL app.current_tenant_id = :tenant_id"), {"tenant_id": tenant_val})
-            db.execute(text("SET LOCAL app.is_super_admin = :is_super_admin"), {"is_super_admin": admin_val})
+            db.execute(text("SELECT set_config('app.current_tenant_id', :tenant_id, true)"), {"tenant_id": tenant_val})
+            db.execute(text("SELECT set_config('app.is_super_admin', :is_super_admin, true)"), {"is_super_admin": admin_val})
         yield db
     finally:
         db.close()

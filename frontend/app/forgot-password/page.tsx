@@ -2,22 +2,29 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { Mail, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { Mail, ArrowLeft, CheckCircle2, ArrowRight } from "lucide-react";
+import { forgotPasswordApi } from "@/lib/api/auth";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) return;
 
+    setError("");
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      await forgotPasswordApi({ email });
       setIsSubmitted(true);
-    }, 800);
+    } catch (err: any) {
+      setError(err.message || "Failed to send reset link. Please check your email address.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -38,14 +45,24 @@ export default function ForgotPasswordPage() {
             </div>
             <h2 className="font-heading font-bold text-[20px] text-[#030712] mb-2">Check your email</h2>
             <p className="text-[13px] text-[#6B7280] leading-relaxed mb-6">
-              We have sent a password reset link to <strong className="text-[#030712]">{email}</strong>.
+              We have processed your request for <strong className="text-[#030712]">{email}</strong>.
             </p>
-            <button
-              onClick={() => setIsSubmitted(false)}
-              className="text-[13px] font-semibold text-[#155DFC] hover:underline"
-            >
-              Didn't receive the email? Try again
-            </button>
+            <div className="flex flex-col gap-3">
+              <Link
+                href={`/forgot-password/reset?email=${encodeURIComponent(email)}`}
+                className="inline-flex items-center justify-center gap-2 w-full bg-[#155DFC] text-[#FFFFFF] font-semibold text-[13.5px] py-2.5 rounded-full hover:bg-[#030712] transition-colors shadow-sm"
+              >
+                <span>Proceed to Set New Password</span>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+              <button
+                type="button"
+                onClick={() => setIsSubmitted(false)}
+                className="text-[13px] font-semibold text-[#6B7280] hover:text-[#030712]"
+              >
+                Try a different email
+              </button>
+            </div>
           </div>
         ) : (
           <div>
@@ -53,6 +70,12 @@ export default function ForgotPasswordPage() {
             <p className="text-[13px] text-[#6B7280] mb-6">
               Enter your registered work email and we will send you instructions to reset your password.
             </p>
+
+            {error && (
+              <div className="mb-4 p-3 rounded-[9px] bg-[#FB3038]/10 border border-[#FB3038]/30 text-[#FB3038] text-[12.5px] font-medium">
+                {error}
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>

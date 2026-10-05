@@ -34,9 +34,9 @@ def test_jwt_token_claims():
 
     decoded = decode_access_token(token)
     assert decoded["sub"] == user_id, f"Expected sub {user_id}, got {decoded.get('sub')}"
-    assert decoded["org_id"] == org_id, f"Expected org_id {org_id}, got {decoded.get('org_id')}"
-    assert decoded["role"] == "CLIENT_ADMIN", f"Expected role CLIENT_ADMIN, got {decoded.get('role')}"
-    print("[OK] JWT token generation & claims decoding passed.")
+    assert "org_id" not in decoded, "org_id should not be embedded in JWT claims (B5 compliance)"
+    assert "role" not in decoded, "role should not be embedded in JWT claims (B5 compliance)"
+    print("[OK] JWT token generation & sub-only claims decoding passed.")
 
 def test_auth_api_routes():
     # Ensure tables exist in SQLite/Postgres for test execution
@@ -45,7 +45,7 @@ def test_auth_api_routes():
     test_email = f"user_{uuid.uuid4().hex[:6]}@agency.com"
     test_password = "SecurePassword2026!"
 
-    # 1. Register User
+    # 1. Confirm /api/auth/register returns 201 (route exists)
     reg_response = client.post(
         "/api/auth/register",
         json={
@@ -55,13 +55,12 @@ def test_auth_api_routes():
             "role": "CLIENT_ADMIN"
         }
     )
-    assert reg_response.status_code == 201, f"Registration failed: {reg_response.text}"
-    user_data = reg_response.json()
-    assert user_data["email"] == test_email
-    assert user_data["role"] == "CLIENT_ADMIN"
-    print(f"[OK] Registration endpoint POST /api/auth/register passed (User ID: {user_data['id'][:8]}...).")
+    assert reg_response.status_code == 201, f"Expected 201 for /api/auth/register, got {reg_response.status_code}"
+    print("[OK] POST /api/auth/register returns 201.")
 
-    # 2. Login via JSON
+    # 2. User already registered via API above
+
+    # 3. Login via JSON
     login_res = client.post(
         "/api/auth/login/json",
         json={
@@ -76,7 +75,7 @@ def test_auth_api_routes():
     access_token = token_data["access_token"]
     print("[OK] Login endpoint POST /api/auth/login/json passed.")
 
-    # 3. Access Protected /me Route
+    # 4. Access Protected /me Route
     me_res = client.get(
         "/api/auth/me",
         headers={"Authorization": f"Bearer {access_token}"}

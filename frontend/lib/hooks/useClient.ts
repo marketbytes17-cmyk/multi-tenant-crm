@@ -15,6 +15,7 @@ import {
   removeRep,
   getClientReports,
   updateClientSettings,
+  createClientLead,
 } from "../api/client";
 import { InviteRepInput, AddNoteInput, ClientSettingsInput } from "../validators/client";
 import { LeadStage } from "@/components/shared/StatusTag";
@@ -57,9 +58,10 @@ export function useLeadDetail(leadId: string | null) {
 export function useClientTeam() {
   return useQuery({
     queryKey: ["client", "team"],
-    queryFn: getClientTeam,
+    queryFn: () => getClientTeam(),
   });
 }
+
 
 export function useClientReports() {
   return useQuery({
@@ -200,3 +202,21 @@ export function useUpdateClientSettingsMutation() {
     },
   });
 }
+
+export function useCreateLeadMutation() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: createClientLead,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["client", "leads"] });
+      queryClient.invalidateQueries({ queryKey: ["client", "dashboard"] });
+      toast(`Lead "${data.name}" added successfully!`, "success");
+    },
+    onError: (err: any) => {
+      toast(err.message || "Failed to create lead", "error");
+    },
+  });
+}
+

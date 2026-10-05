@@ -3,9 +3,13 @@ from sqlalchemy.orm import Session
 
 from app.models.models import PageMapping, LeadForm, User
 from app.schemas.crm import PageMappingCreate, PageMappingResponse, LeadFormCreate, LeadFormResponse
-from app.api.deps import get_db_for_current_user, get_current_user
+from app.api.deps import get_db_for_current_user, get_current_user, require_roles
 
-router = APIRouter(prefix="", tags=["Meta Page Mappings & Lead Forms"])
+router = APIRouter(
+    prefix="",
+    tags=["Meta Page Mappings & Lead Forms"],
+    dependencies=[Depends(require_roles("SUPER_ADMIN"))]
+)
 
 # Page Mappings
 @router.get("/page-mappings", response_model=list[PageMappingResponse])
@@ -45,6 +49,26 @@ def create_page_mapping(
     db.commit()
     db.refresh(mapping)
     return mapping
+
+
+@router.delete("/page-mappings/{mapping_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_page_mapping(
+    mapping_id: str,
+    db: Session = Depends(get_db_for_current_user),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Deletes a Meta Page Mapping.
+    """
+    mapping = db.query(PageMapping).filter(PageMapping.id == mapping_id).first()
+    if not mapping:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Page mapping not found."
+        )
+    db.delete(mapping)
+    db.commit()
+    return None
 
 
 # Lead Forms

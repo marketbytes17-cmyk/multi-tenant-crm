@@ -58,7 +58,7 @@ def fetch_meta_lead_details(leadgen_id: str, access_token: str) -> dict:
             for field in field_data:
                 name = field.get("name", "").lower()
                 vals = field.get("values", [])
-                val = vals[0] if vals else ""
+                val = vals if len(vals) > 1 else (vals[0] if vals else "")
 
                 if name in ["full_name", "name", "first_name"]:
                     extracted["full_name"] = val
@@ -97,6 +97,9 @@ def process_new_lead(self, page_id: str, leadgen_id: str, form_id: str = None):
     """
     db: Session = SessionLocal()
     try:
+        # Worker runs as super admin — bypass RLS for cross-tenant lead routing
+        from sqlalchemy import text
+        db.execute(text("SELECT set_config('app.is_super_admin', 'true', true)"))
         # 1. Idempotent Deduplication Check
         existing_lead = db.query(Lead).filter(Lead.leadgen_id == leadgen_id).first()
         if existing_lead:
@@ -167,7 +170,10 @@ def process_new_lead(self, page_id: str, leadgen_id: str, form_id: str = None):
         logger.info(f"[Lead Worker] Successfully routed Lead {new_lead.id} to Organization {organization_id}.")
 
         # 6. Chain Notification Task
-        send_lead_notification.delay(lead_id=str(new_lead.id), organization_id=str(organization_id))
+        try:
+            send_lead_notification(lead_id=str(new_lead.id), organization_id=str(organization_id))
+        except Exception as notify_err:
+            logger.warning(f"[Notification Notice] Could not dispatch notification: {notify_err}")
 
         return {"status": "success", "lead_id": str(new_lead.id), "organization_id": str(organization_id)}
 
@@ -198,6 +204,9 @@ def reprocess_unmapped_leads():
     db: Session = SessionLocal()
     reprocessed_count = 0
     try:
+        # Worker runs as super admin — bypass RLS for cross-tenant lead routing
+        from sqlalchemy import text
+        db.execute(text("SELECT set_config('app.is_super_admin', 'true', true)"))
         pending = db.query(UnmappedLead).filter(UnmappedLead.status == "UNMAPPED").all()
         for item in pending:
             # Check if page mapping now exists

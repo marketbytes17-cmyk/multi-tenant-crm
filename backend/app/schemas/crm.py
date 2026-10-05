@@ -74,7 +74,7 @@ class LeadFormResponse(BaseModel):
 class LeadCreate(BaseModel):
     organization_id: str | None = None # Resolved from user token if omitted
     lead_form_id: str | None = None
-    leadgen_id: str
+    leadgen_id: str | None = None
     contact_name: str
     contact_email: str | None = None
     contact_phone: str | None = None

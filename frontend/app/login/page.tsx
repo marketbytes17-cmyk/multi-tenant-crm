@@ -31,7 +31,7 @@ export default function LoginPage() {
 
     setIsSubmitting(true);
     try {
-      await login(email, selectedRole);
+      await login(email, selectedRole, password);
       toast("Welcome back to MarketBytes CRM!", "success");
     } catch (err) {
       setError("Invalid credentials. Please try again.");
@@ -41,7 +41,13 @@ export default function LoginPage() {
 
   const setDemoAccount = (demoEmail: string, role: UserRole) => {
     setEmail(demoEmail);
-    setPassword("password123");
+    if (role === "super_admin") {
+      setPassword("MarketBytesAdmin2026!");
+    } else if (role === "client_admin") {
+      setPassword("ClientAdmin2026!");
+    } else {
+      setPassword("SalesRep2026!");
+    }
     setSelectedRole(role);
   };
 
@@ -196,21 +202,21 @@ export default function LoginPage() {
             <div className="flex flex-wrap gap-1.5">
               <button
                 type="button"
-                onClick={() => setDemoAccount("admin@marketbytes.io", "super_admin")}
+                onClick={() => setDemoAccount("admin@marketbytes.com", "super_admin")}
                 className="text-[11px] bg-[#EEECFE] text-[#7F71F8] px-2.5 py-1 rounded-full font-medium hover:opacity-80"
               >
                 Super Admin
               </button>
               <button
                 type="button"
-                onClick={() => setDemoAccount("sarah@apexdesign.com", "client_admin")}
+                onClick={() => setDemoAccount("clientadmin@demoagencyclient.com", "client_admin")}
                 className="text-[11px] bg-[#D5E3FC] text-[#155DFC] px-2.5 py-1 rounded-full font-medium hover:opacity-80"
               >
                 Client Admin
               </button>
               <button
                 type="button"
-                onClick={() => setDemoAccount("michael@apexdesign.com", "sales_rep")}
+                onClick={() => setDemoAccount("salesrep@demoagencyclient.com", "sales_rep")}
                 className="text-[11px] bg-[#FFF1E6] text-[#F54900] px-2.5 py-1 rounded-full font-medium hover:opacity-80"
               >
                 Sales Rep

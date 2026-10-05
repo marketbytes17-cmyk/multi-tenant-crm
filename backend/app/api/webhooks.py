@@ -1,3 +1,4 @@
+import os
 import hmac
 import hashlib
 import json
@@ -88,10 +89,11 @@ async def ingest_lead_webhook(request: Request):
             detail=f"Bad Request: Invalid JSON payload - {str(e)}"
         )
     
-    # 4. Extract page_id and leadgen_id from payload structure & enqueue Celery tasks
+    # 4. Extract page_id and leadgen_id from payload structure & process leads
     is_sync = (
         request.headers.get("x-sync-process") == "true" or 
-        request.headers.get("x-skip-signature-check") == "true"
+        request.headers.get("x-skip-signature-check") == "true" or
+        os.getenv("SYNC_WEBHOOK_PROCESSING", "true").lower() == "true"
     )
     queued_jobs = []
     if isinstance(payload, dict) and "entry" in payload:

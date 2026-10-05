@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRepSettings, useUpdateRepSettingsMutation } from "@/lib/hooks/useRep";
+import { changePasswordApi } from "@/lib/api/auth";
 import { RepSettingsSchema } from "@/lib/validators/rep";
 import { useToast } from "@/lib/context/ToastContext";
 import { Settings, Shield, Bell, User } from "lucide-react";
@@ -51,7 +52,7 @@ export default function RepSettingsPage() {
     await updateSettingsMutation.mutateAsync(validation.data);
   };
 
-  const handleChangePassword = (e: React.FormEvent) => {
+  const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordError("");
 
@@ -66,12 +67,17 @@ export default function RepSettingsPage() {
     }
 
     setIsSavingPassword(true);
-    setTimeout(() => {
-      setIsSavingPassword(false);
+    try {
+      await changePasswordApi(passwordData.currentPassword, passwordData.newPassword);
       setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
       toast("Your password has been successfully updated!", "success");
-    }, 400);
+    } catch (err: any) {
+      setPasswordError(err.message || "Failed to update password. Please check your current password.");
+    } finally {
+      setIsSavingPassword(false);
+    }
   };
+
 
   if (isLoading) {
     return (

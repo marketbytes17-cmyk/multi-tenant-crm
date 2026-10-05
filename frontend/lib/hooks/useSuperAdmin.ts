@@ -19,9 +19,13 @@ import {
   resetClientAdminPassword,
   toggleClientAdminStatus,
   getSuperAdminReports,
+  getSuperAdminSettings,
+  updateSuperAdminSettings,
 } from "../api/superadmin";
-import { AddClientInput, EditClientInput, AddMappingInput } from "../validators/superadmin";
+import { AddClientInput, EditClientInput, AddMappingInput, SuperAdminSettingsInput } from "../validators/superadmin";
 import { useToast } from "@/lib/context/ToastContext";
+
+import { getClientLeads, getClientTeam } from "../api/client";
 
 // --- Queries ---
 
@@ -47,6 +51,23 @@ export function useClientDetail(clientId: string) {
     enabled: !!clientId,
   });
 }
+
+export function useClientOrganizationLeads(organizationId: string) {
+  return useQuery({
+    queryKey: ["superadmin", "client-leads", organizationId],
+    queryFn: () => getClientLeads({ organization_id: organizationId }),
+    enabled: !!organizationId,
+  });
+}
+
+export function useClientOrganizationTeam(organizationId: string) {
+  return useQuery({
+    queryKey: ["superadmin", "client-team", organizationId],
+    queryFn: () => getClientTeam(organizationId),
+    enabled: !!organizationId,
+  });
+}
+
 
 export function useMetaMappings() {
   return useQuery({
@@ -84,7 +105,30 @@ export function useSuperAdminReports() {
   });
 }
 
+export function useSuperAdminSettings() {
+  return useQuery({
+    queryKey: ["superadmin", "settings"],
+    queryFn: getSuperAdminSettings,
+  });
+}
+
 // --- Mutations ---
+
+export function useUpdateSuperAdminSettingsMutation() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: (input: SuperAdminSettingsInput) => updateSuperAdminSettings(input),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["superadmin", "settings"], data);
+      toast("Platform settings updated successfully!", "success");
+    },
+    onError: (err: any) => {
+      toast(err.message || "Failed to update platform settings", "error");
+    },
+  });
+}
 
 export function useCreateClientMutation() {
   const queryClient = useQueryClient();
