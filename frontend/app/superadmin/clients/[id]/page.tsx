@@ -124,15 +124,6 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
     );
   }
 
-  const handleImpersonate = async () => {
-    try {
-      toast(`Impersonating ${client.name}... Switching to client workspace.`, "info");
-      await impersonate(client.id, client.name, client.adminEmail || client.contactEmail);
-    } catch (err: any) {
-      toast(err.message || "Failed to impersonate client", "error");
-    }
-  };
-
   const handleOpenEdit = () => {
     setEditFormData({
       name: client.name,
@@ -228,17 +219,10 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
               <Power className="w-3.5 h-3.5" />
               <span>{client.status === "active" ? "Deactivate" : "Reactivate"}</span>
             </button>
-
-            <button
-              onClick={handleImpersonate}
-              className="inline-flex items-center gap-1.5 bg-[#155DFC] hover:bg-[#030712] text-[#FFFFFF] font-semibold text-[12.5px] px-4 py-2 rounded-full transition-colors shadow-xs"
-            >
-              <LogIn className="w-3.5 h-3.5" />
-              <span>Impersonate Client</span>
-            </button>
           </div>
         </div>
       </div>
+
 
       {/* Tabs Bar */}
       <div className="border-b border-[#E5E7EB] flex items-center gap-6">
