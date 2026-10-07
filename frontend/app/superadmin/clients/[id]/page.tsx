@@ -10,7 +10,6 @@ import {
   useClientOrganizationLeads,
   useClientOrganizationTeam,
 } from "@/lib/hooks/useSuperAdmin";
-import { useAuth } from "@/lib/context/AuthContext";
 import { useToast } from "@/lib/context/ToastContext";
 import { DataTable } from "@/components/shared/DataTable";
 import { KanbanBoard } from "@/components/shared/KanbanBoard";
@@ -35,58 +34,10 @@ import {
   AlertTriangle,
 } from "lucide-react";
 
-// Mock leads data for read-only Client Detail tabs
-const MOCK_CLIENT_LEADS: Lead[] = [
-  {
-    id: "lead_101",
-    name: "Robert Fox",
-    phone: "+1 (555) 019-2834",
-    email: "robert@example.com",
-    status: "New",
-    source: "Facebook Ad #402",
-    assignedRepName: "Sarah Jenkins",
-    assignedRepInitials: "SJ",
-    createdAt: "2026-09-24T10:00:00Z",
-  },
-  {
-    id: "lead_102",
-    name: "Jenny Wilson",
-    phone: "+1 (555) 018-9922",
-    email: "jenny@example.com",
-    status: "Contacted",
-    source: "Instagram Story Leadform",
-    assignedRepName: "Michael Scott",
-    assignedRepInitials: "MS",
-    createdAt: "2026-09-24T11:30:00Z",
-  },
-  {
-    id: "lead_103",
-    name: "Cody Fisher",
-    phone: "+1 (555) 017-3344",
-    email: "cody@example.com",
-    status: "In Negotiation",
-    source: "Meta Retargeting Campaign",
-    assignedRepName: "Sarah Jenkins",
-    assignedRepInitials: "SJ",
-    createdAt: "2026-09-23T14:15:00Z",
-  },
-  {
-    id: "lead_104",
-    name: "Kristin Watson",
-    phone: "+1 (555) 016-5588",
-    email: "kristin@example.com",
-    status: "Closed Won",
-    source: "Facebook Lead Form",
-    assignedRepName: "Michael Scott",
-    assignedRepInitials: "MS",
-    createdAt: "2026-09-22T09:45:00Z",
-  },
-];
 
 export default function ClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const router = useRouter();
-  const { impersonate } = useAuth();
   const { toast } = useToast();
 
   const { data: client, isLoading, isError } = useClientDetail(resolvedParams.id);
